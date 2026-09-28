@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kodex | Enterprise AI Code Review Agent (Kodex Architecture)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            400: '#818cf8',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Marked.js for Markdown Rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Mermaid.js for Sequence Diagrams -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #090d16; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        /* Markdown rendering styles */
+        .markdown-body h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem; color: #f8fafc; border-bottom: 1px solid #1e293b; padding-bottom: 0.5rem; }
+        .markdown-body h2 { font-size: 1.25rem; font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.75rem; color: #e2e8f0; }
+        .markdown-body h3 { font-size: 1.1rem; font-weight: 600; margin-top: 1rem; margin-bottom: 0.5rem; color: #cbd5e1; }
+        .markdown-body p { margin-bottom: 0.75rem; line-height: 1.6; color: #94a3b8; }
+        .markdown-body ul { list-style-type: disc; margin-left: 1.5rem; margin-bottom: 0.75rem; color: #94a3b8; }
+        .markdown-body li { margin-bottom: 0.25rem; }
+        .markdown-body table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 0.875rem; }
+        .markdown-body th { background: #1e293b; color: #f1f5f9; padding: 0.5rem 0.75rem; text-align: left; border: 1px solid #334155; }
+        .markdown-body td { padding: 0.5rem 0.75rem; border: 1px solid #334155; color: #cbd5e1; }
+        .markdown-body code { font-family: 'JetBrains Mono', monospace; background: #1e293b; color: #f43f5e; padding: 0.15rem 0.35rem; border-radius: 0.25rem; font-size: 0.85em; }
+        .markdown-body pre { background: #0b1120; border: 1px solid #1e293b; border-radius: 0.5rem; padding: 1rem; overflow-x: auto; margin-bottom: 1rem; }
+        .markdown-body pre code { background: transparent; color: #e2e8f0; padding: 0; }
+        .markdown-body blockquote { border-left: 4px solid #6366f1; padding-left: 1rem; color: #94a3b8; font-style: italic; margin-bottom: 1rem; }
+        .mermaid { display: flex; justify-content: center; background: #0b1120; border: 1px solid #1e293b; border-radius: 0.5rem; padding: 1.5rem; margin-bottom: 1.25rem; }
+    </style>
+</head>
+<body class="text-slate-100 min-h-screen flex flex-col">
+
+    <!-- Navbar -->
+    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50 px-6 py-3.5">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <span class="text-2xl">🐇</span>
+                <div>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-xl font-bold tracking-tight text-white">Kodex</span>
+                        <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">Kodex Engine</span>
+                        <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Hindsight Memory</span>
+                    </div>
+                    <p class="text-xs text-slate-400">Semantic Graphing • Dependency Cohorts • Long-Term PR Memory</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-4">
+                <div class="hidden md:flex items-center space-x-2 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700/60 font-mono text-xs">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span class="text-slate-400">Model:</span>
+                    <span class="text-indigo-300 font-semibold">{{ config.GROQ_MODEL }}</span>
+                </div>
+                <div class="hidden sm:flex items-center space-x-2 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700/60 font-mono text-xs">
+                    <span class="text-slate-400">Bank:</span>
+                    <span class="text-emerald-300 font-semibold">{{ config.HINDSIGHT_BANK_ID }}</span>
+                </div>
+                <a href="https://github.com/vectorize-io/hindsight" target="_blank" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-1.5 rounded-md font-medium transition shadow-sm">
+                    Hindsight Cloud Docs ↗
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- Left / Center: PR Input & Review Output (8 Cols) -->
+        <div class="lg:col-span-8 flex flex-col space-y-6">
+
+            <!-- Panel 1: PR Input Panel -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center space-x-2">
+                        <span class="text-indigo-400">📥</span>
+                        <h2 class="text-base font-semibold text-white">Pull Request Diff Input</h2>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-xs text-slate-400">Quick-Load Demos:</span>
+                        <button onclick="loadSample('a')" class="text-xs bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-slate-700 px-2.5 py-1 rounded transition">
+                            PR #101 (Payment)
+                        </button>
+                        <button onclick="loadSample('b')" class="text-xs bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-slate-700 px-2.5 py-1 rounded transition">
+                            PR #102 (Notification)
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">PR Title</label>
+                        <input id="prTitleInput" type="text" value="feat(payments): add payment gateway configuration service" 
+                               class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-mono">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">PR ID / Branch</label>
+                        <input id="prIdInput" type="text" value="PR-101" 
+                               class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-mono">
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="block text-xs font-medium text-slate-400 mb-1">Unified Git Diff Content</label>
+                    <textarea id="diffInput" rows="7" placeholder="Paste git diff here..." 
+                              class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs text-slate-300 font-mono focus:outline-none focus:border-indigo-500"></textarea>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-slate-500 font-mono">Auto-sorted by: Schema ➔ Business Logic ➔ API ➔ Tests</span>
+                    <button id="generateBtn" onclick="triggerReview()" 
+                            class="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm px-5 py-2 rounded-lg transition shadow-md">
+                        <span id="btnIcon">⚡</span>
+                        <span id="btnText">Generate Kodex Review</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Panel 2: Review Output Panel -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg flex-1 flex flex-col">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+                    <div class="flex items-center space-x-2">
+                        <span class="text-indigo-400">🐇</span>
+                        <h2 class="text-base font-semibold text-white">Kodex Enterprise Review Output</h2>
+                    </div>
+                    <div id="reviewMeta" class="hidden flex items-center space-x-2 font-mono text-xs text-slate-400">
+                        <span id="reviewTimeBadge" class="bg-slate-800 px-2.5 py-0.5 rounded border border-slate-700 text-indigo-300"></span>
+                        <span id="reviewCohortsBadge" class="bg-slate-800 px-2.5 py-0.5 rounded border border-slate-700 text-emerald-300"></span>
+                    </div>
+                </div>
+
+                <!-- Markdown Content Container -->
+                <div id="outputContainer" class="markdown-body flex-1 overflow-y-auto min-h-[350px]">
+                    <div class="flex flex-col items-center justify-center h-full py-16 text-center text-slate-500">
+                        <span class="text-4xl mb-3">📋</span>
+                        <p class="text-sm font-medium text-slate-400">Ready to Review</p>
+                        <p class="text-xs text-slate-600 max-w-sm mt-1">Paste a git diff above or click one of the quick-load buttons to generate a Kodex review with Mermaid sequence diagrams.</p>
+                    </div>
+                </div>
+
+                <!-- Developer Feedback Section (Teach the Agent) -->
+                <div class="mt-6 pt-4 border-t border-slate-800">
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="block text-xs font-semibold text-indigo-400 flex items-center space-x-1.5">
+                            <span>💬</span>
+                            <span>Developer Reply (Teach the Agent via Hindsight Retain)</span>
+                        </label>
+                        <span class="text-[11px] text-slate-500">Memorizes conventions so the agent never repeats rejected suggestions</span>
+                    </div>
+
+                    <!-- Preset feedback pills -->
+                    <div class="flex flex-wrap gap-1.5 mb-2.5">
+                        <button onclick="setFeedbackText('Developer: We actually prefer dict.get() over try/except for dictionaries here.')" 
+                                class="text-[11px] bg-slate-800/90 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded border border-slate-700 transition">
+                            💡 "We prefer dict.get() over try/except for dictionaries"
+                        </button>
+                        <button onclick="setFeedbackText('Developer: Please do not suggest logging tenant tokens in plain text.')" 
+                                class="text-[11px] bg-slate-800/90 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded border border-slate-700 transition">
+                            🔒 "Do not log tenant tokens in plain text"
+                        </button>
+                    </div>
+
+                    <div class="flex items-center space-x-2">
+                        <input id="commentInput" type="text" placeholder="e.g. Developer: We prefer dict.get() over try/except for dictionaries here." 
+                               class="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none focus:border-indigo-500">
+                        <button onclick="submitFeedback()" 
+                                class="bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs px-4 py-2 rounded-lg transition shadow flex items-center space-x-1.5">
+                            <span>🧠</span>
+                            <span>Retain in Memory</span>
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- Right: Live Memory Viewer Panel (4 Cols) -->
+        <div class="lg:col-span-4 flex flex-col space-y-6">
+
+            <!-- Panel 3: Live Memory Viewer Panel -->
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg flex-1 flex flex-col">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+                    <div class="flex items-center space-x-2">
+                        <span class="text-emerald-400">🧠</span>
+                        <h2 class="text-base font-semibold text-white">Live Memory Viewer</h2>
+                    </div>
+                    <div class="flex items-center space-x-1">
+                        <button onclick="fetchMemories()" title="Refresh Memory Bank" class="p-1 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded transition text-xs">
+                            🔄
+                        </button>
+                        <button onclick="clearMemoryBank()" title="Clear Bank (Reset Demo)" class="p-1 hover:bg-slate-800 text-rose-400 hover:text-rose-300 rounded transition text-xs">
+                            🗑️
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Sub-Panel: Reflected Architectural Style -->
+                <div class="mb-4">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <span class="text-xs font-semibold text-indigo-400 uppercase tracking-wider font-mono">Synthesized Norms (reflect)</span>
+                        <span class="text-[10px] text-slate-500">Continuous AI Summary</span>
+                    </div>
+                    <div id="reflectedStyleBox" class="bg-slate-950 border border-indigo-900/40 rounded-lg p-3 text-xs text-slate-300 leading-relaxed font-mono min-h-[60px]">
+                        Loading synthesized norms from Hindsight Cloud...
+                    </div>
+                </div>
+
+                <!-- Sub-Panel: Retained Rules (recall) -->
+                <div class="flex-1 flex flex-col">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-semibold text-emerald-400 uppercase tracking-wider font-mono">Retained Rules (recall)</span>
+                        <span id="rulesCountBadge" class="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full font-mono">0 rules</span>
+                    </div>
+
+                    <div id="memoriesList" class="flex-1 overflow-y-auto space-y-2.5 max-h-[480px]">
+                        <!-- Populated by JS -->
+                        <div class="text-xs text-slate-500 text-center py-6 font-mono">Loading memory bank...</div>
+                    </div>
+                </div>
+
+                <!-- Info footer -->
+                <div class="mt-4 pt-3 border-t border-slate-800/80 text-[11px] text-slate-500 flex items-center justify-between font-mono">
+                    <span>Hindsight Cloud: <span class="text-emerald-400">Live</span></span>
+                    <span>Namespace: repo-standards</span>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Toast Notification Container -->
+    <div id="toast" class="fixed bottom-6 right-6 z-50 transform translate-y-20 opacity-0 transition-all duration-300 ease-in-out pointer-events-none">
+        <div class="bg-slate-800 border border-emerald-500/50 text-slate-100 px-4 py-3 rounded-lg shadow-xl flex items-center space-x-3 max-w-md">
+            <span class="text-xl">✅</span>
+            <div>
+                <p id="toastTitle" class="text-xs font-semibold text-emerald-400">Memory Retained in Hindsight</p>
+                <p id="toastMessage" class="text-xs text-slate-300 mt-0.5 font-mono"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        // Initialize Mermaid
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: 'dark',
+            themeVariables: {
+                darkMode: true,
+                background: '#0b1120',
+                primaryColor: '#6366f1',
+                secondaryColor: '#10b981',
+                tertiaryColor: '#1e293b',
+                lineColor: '#64748b'
+            }
+        });
+
+        // Sample Diffs
+        const SAMPLES = {
+            a: {
+                id: "PR-101",
+                title: "feat(payments): add dynamic gateway configuration with timeout defaults",
+                diff: `diff --git a/tests/test_payment_config.py b/tests/test_payment_config.py
+new file mode 100644
+index 0000000..7b91d2c
+--- /dev/null
++++ b/tests/test_payment_config.py
+@@ -0,0 +1,15 @@
++import pytest
++from src.services.payment_gateway_config import PaymentGatewayConfigService
++
++def test_default_timeout_fallback():
++    service = PaymentGatewayConfigService({})
++    assert service.get_api_timeout_seconds() == 30
++
++def test_custom_timeout_resolution():
++    service = PaymentGatewayConfigService({"api_timeout_seconds": 60})
++    assert service.get_api_timeout_seconds() == 60
+diff --git a/migrations/001_payment_gateway_config.sql b/migrations/001_payment_gateway_config.sql
+new file mode 100644
+index 0000000..8fa30b1
+--- /dev/null
++++ b/migrations/001_payment_gateway_config.sql
+@@ -0,0 +1,12 @@
++-- Migration: 001_payment_gateway_config.sql
++-- Purpose: Store dynamic tenant payment gateway configurations
++CREATE TABLE IF NOT EXISTS payment_gateway_configs (
++    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
++    tenant_id VARCHAR(64) NOT NULL,
++    api_timeout_seconds INT DEFAULT 30,
++    max_retries INT DEFAULT 3,
++    endpoint_url TEXT NOT NULL,
++    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
++);
++CREATE INDEX idx_pay_tenant ON payment_gateway_configs(tenant_id);
+diff --git a/src/api/payment_routes.py b/src/api/payment_routes.py
+new file mode 100644
+index 0000000..cb1542a
+--- /dev/null
++++ b/src/api/payment_routes.py
+@@ -0,0 +1,14 @@
++from flask import Blueprint, jsonify, request
++from src.services.payment_gateway_config import PaymentGatewayConfigService
++
++payments_bp = Blueprint("payments", __name__)
++
++@payments_bp.route("/api/v1/payments/config", methods=["GET"])
++def get_gateway_config():
++    tenant_config = request.headers.get("X-Tenant-Config", {})
++    service = PaymentGatewayConfigService(tenant_config)
++    return jsonify({
++        "timeout": service.get_api_timeout_seconds(),
++        "retries": service.get_max_retry_attempts()
++    })
+diff --git a/src/services/payment_gateway_config.py b/src/services/payment_gateway_config.py
+index a41bc29..9f22081 100644
+--- a/src/services/payment_gateway_config.py
++++ b/src/services/payment_gateway_config.py
+@@ -10,6 +10,18 @@ class PaymentGatewayConfigService:
+     def __init__(self, raw_config: dict):
+         self.raw_config = raw_config
+
++    def get_api_timeout_seconds(self) -> int:
++        """Extract API connection timeout with default fallback."""
++        return self.raw_config.get("api_timeout_seconds", 30)
++
++    def get_max_retry_attempts(self) -> int:
++        """Extract maximum retry attempts with default fallback."""
++        return self.raw_config.get("max_retries", 3)
++
+     def get_gateway_endpoint(self) -> str:
+         return self.raw_config.get("endpoint_url", "https://api.stripe.com/v1")`
+            },
+            b: {
+                id: "PR-102",
+                title: "feat(notifications): add user notification preference resolution",
+                diff: `diff --git a/tests/test_user_notifications.py b/tests/test_user_notifications.py
+new file mode 100644
+index 0000000..3ca291d
+--- /dev/null
++++ b/tests/test_user_notifications.py
+@@ -0,0 +1,12 @@
++import pytest
++from src.services.user_notification_service import UserNotificationPreferenceService
++
++def test_default_notification_channel():
++    svc = UserNotificationPreferenceService({})
++    assert svc.get_notification_channel() == "email"
++
++def test_custom_rate_limit():
++    svc = UserNotificationPreferenceService({"rate_limit_per_minute": 120})
++    assert svc.get_rate_limit_per_minute() == 120
+diff --git a/src/api/user_notification_routes.py b/src/api/user_notification_routes.py
+new file mode 100644
+index 0000000..9df28a1
+--- /dev/null
++++ b/src/api/user_notification_routes.py
+@@ -0,0 +1,13 @@
++from flask import Blueprint, jsonify, request
++from src.services.user_notification_service import UserNotificationPreferenceService
++
++notifications_bp = Blueprint("notifications", __name__)
++
++@notifications_bp.route("/api/v1/users/preferences", methods=["GET"])
++def get_user_preferences():
++    raw_prefs = request.json or {}
++    service = UserNotificationPreferenceService(raw_prefs)
++    return jsonify({
++        "channel": service.get_notification_channel(),
++        "rate_limit": service.get_rate_limit_per_minute()
++    })
+diff --git a/src/services/user_notification_service.py b/src/services/user_notification_service.py
+index e83cb11..4f8101a 100644
+--- a/src/services/user_notification_service.py
++++ b/src/services/user_notification_service.py
+@@ -15,6 +15,18 @@ class UserNotificationPreferenceService:
+     def __init__(self, raw_settings: dict):
+         self.raw_settings = raw_settings
+
++    def get_notification_channel(self) -> str:
++        """Extract notification delivery channel with default fallback."""
++        return self.raw_settings.get("delivery_channel", "email")
++
++    def get_rate_limit_per_minute(self) -> int:
++        """Extract notification rate limit window."""
++        return self.raw_settings.get("rate_limit_per_minute", 60)
++
+     def is_quiet_hours_enabled(self) -> bool:
+         return self.raw_settings.get("enable_quiet_hours", False)`
+            }
+        };
+
+        function loadSample(key) {
+            const s = SAMPLES[key];
+            if (s) {
+                document.getElementById('prIdInput').value = s.id;
+                document.getElementById('prTitleInput').value = s.title;
+                document.getElementById('diffInput').value = s.diff;
+                showToast("Sample Loaded", `Loaded ${s.id}: ${s.title}`);
+            }
+        }
+
+        function setFeedbackText(text) {
+            document.getElementById('commentInput').value = text;
+        }
+
+        function showToast(title, msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastTitle').innerText = title;
+            document.getElementById('toastMessage').innerText = msg;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 4500);
+        }
+
+        // Fetch Memories and Reflected Architecture from /api/memories
+        async function fetchMemories() {
+            try {
+                const res = await fetch('/api/memories');
+                const data = await res.json();
+                
+                // 1. Reflected style
+                const refBox = document.getElementById('reflectedStyleBox');
+                if (data.reflected_style) {
+                    refBox.innerText = data.reflected_style;
+                } else {
+                    refBox.innerText = "No conventions reflected yet.";
+                }
+
+                // 2. Retained rules
+                const list = document.getElementById('memoriesList');
+                const countBadge = document.getElementById('rulesCountBadge');
+                const memories = data.memories || [];
+                countBadge.innerText = `${memories.length} rule${memories.length === 1 ? '' : 's'}`;
+
+                if (memories.length === 0) {
+                    list.innerHTML = `<div class="text-xs text-slate-500 text-center py-6 font-mono">No rules retained yet. Use the feedback box to teach the agent!</div>`;
+                    return;
+                }
+
+                list.innerHTML = memories.map((m, idx) => `
+                    <div class="bg-slate-950 border border-slate-800 border-l-4 border-l-emerald-500 rounded-lg p-3 text-xs font-mono shadow-sm">
+                        <div class="text-slate-200 font-medium leading-snug">"${m.text}"</div>
+                        <div class="text-[11px] text-slate-500 mt-1.5 flex items-center justify-between">
+                            <span>Context: ${m.context || 'PR correction'}</span>
+                            <span class="text-emerald-400">#${idx + 1}</span>
+                        </div>
+                    </div>
+                `).join('');
+
+            } catch (err) {
+                console.error("Failed to load memories:", err);
+            }
+        }
+
+        // Trigger Code Review
+        async function triggerReview() {
+            const diff = document.getElementById('diffInput').value.trim();
+            const prId = document.getElementById('prIdInput').value.trim() || 'PR-101';
+            const title = document.getElementById('prTitleInput').value.trim() || 'Code Update';
+
+            if (!diff) {
+                alert("Please paste a Git Diff or click a Quick-Load sample button first.");
+                return;
+            }
+
+            const btn = document.getElementById('generateBtn');
+            const btnIcon = document.getElementById('btnIcon');
+            const btnText = document.getElementById('btnText');
+            const output = document.getElementById('outputContainer');
+            const meta = document.getElementById('reviewMeta');
+
+            btn.disabled = true;
+            btnIcon.innerText = "⏳";
+            btnText.innerText = "Analyzing Diff & Recalling Memory...";
+            output.innerHTML = `
+                <div class="flex flex-col items-center justify-center py-20 text-center">
+                    <div class="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                    <p class="text-sm font-semibold text-slate-300">Evaluating Semantic Cohorts & Recalling Hindsight Context...</p>
+                    <p class="text-xs text-slate-500 mt-1 font-mono">Calling Groq (${navigator.userAgent ? 'Live LPU Engine' : ''})...</p>
+                </div>
+            `;
+
+            const startTime = performance.now();
+
+            try {
+                const res = await fetch('/webhook/pr', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ diff, pr_id: prId, title })
+                });
+
+                const json = await res.json();
+                const elapsed = ((performance.now() - startTime) / 1000).toFixed(2);
+
+                if (json.status === 'success' && json.data) {
+                    const reviewData = json.data;
+                    renderReviewMarkdown(reviewData.review_markdown);
+
+                    // Update meta badges
+                    meta.classList.remove('hidden');
+                    document.getElementById('reviewTimeBadge').innerText = `⏱ ${elapsed}s (${reviewData.model_used})`;
+                    const cohortsCount = Object.keys(reviewData.cohorts || {}).length;
+                    document.getElementById('reviewCohortsBadge').innerText = `📦 ${cohortsCount} Cohorts`;
+
+                    showToast("Review Completed", `${prId} reviewed in ${elapsed}s with Hindsight context.`);
+                    // Refresh memory viewer in case reflect updated
+                    fetchMemories();
+                } else {
+                    output.innerHTML = `<div class="p-4 bg-rose-950/40 border border-rose-800 text-rose-300 rounded-lg text-xs font-mono">Error: ${json.message || 'Review generation failed'}</div>`;
+                }
+
+            } catch (err) {
+                output.innerHTML = `<div class="p-4 bg-rose-950/40 border border-rose-800 text-rose-300 rounded-lg text-xs font-mono">Network Error: ${err.message}</div>`;
+            } finally {
+                btn.disabled = false;
+                btnIcon.innerText = "⚡";
+                btnText.innerText = "Generate Kodex Review";
+            }
+        }
+
+        // Render Markdown & Execute Mermaid.js Diagrams
+        function renderReviewMarkdown(markdownText) {
+            const container = document.getElementById('outputContainer');
+            
+            // Configure marked renderer to handle mermaid code blocks
+            const renderer = new marked.Renderer();
+            const defaultCodeRenderer = renderer.code.bind(renderer);
+            
+            renderer.code = function(code, language) {
+                if (language === 'mermaid') {
+                    return `<div class="mermaid">${code}</div>`;
+                }
+                return defaultCodeRenderer(code, language);
+            };
+
+            marked.setOptions({ renderer: renderer, breaks: true });
+            container.innerHTML = marked.parse(markdownText);
+
+            // Execute Mermaid
+            try {
+                mermaid.run({ nodes: container.querySelectorAll('.mermaid') });
+            } catch (e) {
+                console.warn("Mermaid render warning:", e);
+            }
+        }
+
+        // Submit Developer Feedback to /webhook/comment
+        async function submitFeedback() {
+            const input = document.getElementById('commentInput');
+            const comment = input.value.trim();
+
+            if (!comment) {
+                alert("Please enter a feedback correction (e.g. 'We prefer dict.get() over try/except').");
+                return;
+            }
+
+            try {
+                const res = await fetch('/webhook/comment', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        comment: comment,
+                        context: "developer PR correction"
+                    })
+                });
+
+                const data = await res.json();
+                if (data.status === 'success') {
+                    showToast("Feedback Retained in Hindsight!", `Rule: "${data.retained_rule}" committed to repo-standards bank.`);
+                    input.value = '';
+                    // Instant memory refresh
+                    fetchMemories();
+                } else {
+                    alert("Error retaining feedback: " + (data.message || 'Unknown error'));
+                }
+            } catch (err) {
+                alert("Network error: " + err.message);
+            }
+        }
+
+        // Clear Memory Bank
+        async function clearMemoryBank() {
+            if (!confirm("Are you sure you want to reset the Hindsight memory bank? This will clear all retained rules.")) {
+                return;
+            }
+            try {
+                const res = await fetch('/api/memories', { method: 'DELETE' });
+                const data = await res.json();
+                showToast("Memory Reset", "Bank 'repo-standards' has been reset on Hindsight Cloud.");
+                fetchMemories();
+            } catch (err) {
+                alert("Failed to reset memory: " + err.message);
+            }
+        }
+
+        // Initial load
+        window.addEventListener('DOMContentLoaded', () => {
+            loadSample('a');
+            fetchMemories();
+        });
+    </script>
+</body>
+</html>

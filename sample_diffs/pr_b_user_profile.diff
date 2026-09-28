@@ -1,0 +1,53 @@
+diff --git a/tests/test_user_notifications.py b/tests/test_user_notifications.py
+new file mode 100644
+index 0000000..3ca291d
+--- /dev/null
++++ b/tests/test_user_notifications.py
+@@ -0,0 +1,12 @@
++import pytest
++from src.services.user_notification_service import UserNotificationPreferenceService
++
++def test_default_notification_channel():
++    svc = UserNotificationPreferenceService({})
++    assert svc.get_notification_channel() == "email"
++
++def test_custom_rate_limit():
++    svc = UserNotificationPreferenceService({"rate_limit_per_minute": 120})
++    assert svc.get_rate_limit_per_minute() == 120
+diff --git a/src/api/user_notification_routes.py b/src/api/user_notification_routes.py
+new file mode 100644
+index 0000000..9df28a1
+--- /dev/null
++++ b/src/api/user_notification_routes.py
+@@ -0,0 +1,13 @@
++from flask import Blueprint, jsonify, request
++from src.services.user_notification_service import UserNotificationPreferenceService
++
++notifications_bp = Blueprint("notifications", __name__)
++
++@notifications_bp.route("/api/v1/users/preferences", methods=["GET"])
++def get_user_preferences():
++    raw_prefs = request.json or {}
++    service = UserNotificationPreferenceService(raw_prefs)
++    return jsonify({
++        "channel": service.get_notification_channel(),
++        "rate_limit": service.get_rate_limit_per_minute()
++    })
+diff --git a/src/services/user_notification_service.py b/src/services/user_notification_service.py
+index e83cb11..4f8101a 100644
+--- a/src/services/user_notification_service.py
++++ b/src/services/user_notification_service.py
+@@ -15,6 +15,18 @@ class UserNotificationPreferenceService:
+     def __init__(self, raw_settings: dict):
+         self.raw_settings = raw_settings
+
++    def get_notification_channel(self) -> str:
++        """Extract notification delivery channel with default fallback."""
++        return self.raw_settings.get("delivery_channel", "email")
++
++    def get_rate_limit_per_minute(self) -> int:
++        """Extract notification rate limit window."""
++        return self.raw_settings.get("rate_limit_per_minute", 60)
++
+     def is_quiet_hours_enabled(self) -> bool:
+         return self.raw_settings.get("enable_quiet_hours", False)

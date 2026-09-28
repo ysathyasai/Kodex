@@ -1,0 +1,70 @@
+diff --git a/tests/test_payment_config.py b/tests/test_payment_config.py
+new file mode 100644
+index 0000000..7b91d2c
+--- /dev/null
++++ b/tests/test_payment_config.py
+@@ -0,0 +1,15 @@
++import pytest
++from src.services.payment_gateway_config import PaymentGatewayConfigService
++
++def test_default_timeout_fallback():
++    service = PaymentGatewayConfigService({})
++    assert service.get_api_timeout_seconds() == 30
++
++def test_custom_timeout_resolution():
++    service = PaymentGatewayConfigService({"api_timeout_seconds": 60})
++    assert service.get_api_timeout_seconds() == 60
+diff --git a/migrations/001_payment_gateway_config.sql b/migrations/001_payment_gateway_config.sql
+new file mode 100644
+index 0000000..8fa30b1
+--- /dev/null
++++ b/migrations/001_payment_gateway_config.sql
+@@ -0,0 +1,12 @@
++-- Migration: 001_payment_gateway_config.sql
++-- Purpose: Store dynamic tenant payment gateway configurations
++CREATE TABLE IF NOT EXISTS payment_gateway_configs (
++    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
++    tenant_id VARCHAR(64) NOT NULL,
++    api_timeout_seconds INT DEFAULT 30,
++    max_retries INT DEFAULT 3,
++    endpoint_url TEXT NOT NULL,
++    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
++);
++CREATE INDEX idx_pay_tenant ON payment_gateway_configs(tenant_id);
+diff --git a/src/api/payment_routes.py b/src/api/payment_routes.py
+new file mode 100644
+index 0000000..cb1542a
+--- /dev/null
++++ b/src/api/payment_routes.py
+@@ -0,0 +1,14 @@
++from flask import Blueprint, jsonify, request
++from src.services.payment_gateway_config import PaymentGatewayConfigService
++
++payments_bp = Blueprint("payments", __name__)
++
++@payments_bp.route("/api/v1/payments/config", methods=["GET"])
++def get_gateway_config():
++    tenant_config = request.headers.get("X-Tenant-Config", {})
++    service = PaymentGatewayConfigService(tenant_config)
++    return jsonify({
++        "timeout": service.get_api_timeout_seconds(),
++        "retries": service.get_max_retry_attempts()
++    })
+diff --git a/src/services/payment_gateway_config.py b/src/services/payment_gateway_config.py
+index a41bc29..9f22081 100644
+--- a/src/services/payment_gateway_config.py
++++ b/src/services/payment_gateway_config.py
+@@ -10,6 +10,18 @@ class PaymentGatewayConfigService:
+     def __init__(self, raw_config: dict):
+         self.raw_config = raw_config
+
++    def get_api_timeout_seconds(self) -> int:
++        """Extract API connection timeout with default fallback."""
++        return self.raw_config.get("api_timeout_seconds", 30)
++
++    def get_max_retry_attempts(self) -> int:
++        """Extract maximum retry attempts with default fallback."""
++        return self.raw_config.get("max_retries", 3)
++
+     def get_gateway_endpoint(self) -> str:
+         return self.raw_config.get("endpoint_url", "https://api.stripe.com/v1")

@@ -1,0 +1,29 @@
+services:
+  # Kodex AI Code Review Agent (Flask + Groq LLM + Hindsight Cloud Integration)
+  kodex-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kodex_code_review_agent
+    ports:
+      - "${PORT:-5000}:5000"
+    environment:
+      - PORT=5000
+      - HOST=0.0.0.0
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GROQ_MODEL=${GROQ_MODEL:-openai/gpt-oss-120b}
+      - GROQ_FALLBACK_MODEL=${GROQ_FALLBACK_MODEL:-qwen/qwen3.8-27b}
+      - HINDSIGHT_BASE_URL=${HINDSIGHT_BASE_URL:-https://api.hindsight.vectorize.io}
+      - HINDSIGHT_API_KEY=${HINDSIGHT_API_KEY}
+      - HINDSIGHT_BANK_ID=${HINDSIGHT_BANK_ID:-repo-standards}
+      - HINDSIGHT_TIMEOUT=30.0
+      - ALLOW_MOCK_FALLBACK=false
+      - CUDA_VISIBLE_DEVICES=""
+      - DEVICE=cpu
+    networks:
+      - kodex-net
+    restart: unless-stopped
+
+networks:
+  kodex-net:
+    driver: bridge
